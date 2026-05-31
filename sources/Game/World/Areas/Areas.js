@@ -45,6 +45,17 @@ export class Areas
             }
         }
 
+        // Hide altar geometry — area is removed but the mesh still exists in the GLB.
+        // Without AltarArea initializing its WebGPU materials, the renderer crashes on it.
+        this.game.resources.areasModel.scene.traverse((node) =>
+        {
+            if(node.name.toLowerCase().startsWith('altar'))
+            {
+                node.visible = false
+                if(node.material) node.material.dispose()
+            }
+        })
+
         // // Test how many areas are visible
         // this.game.ticker.events.on('tick', () =>
         // {
