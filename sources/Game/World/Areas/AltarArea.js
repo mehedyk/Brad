@@ -1,30 +1,16 @@
 /**
- * AltarArea — stripped to a no-op stub.
- * The original altar area has been removed from this portfolio.
- * The 3D mesh still exists in the GLB. Without this class properly
- * initialising its WebGPU NodeMaterials the renderer crashes with
- * a "drawIndexed: Value is not of type unsigned long" error.
- * This stub receives the group and immediately hides every descendant,
- * preventing the broken materials from ever reaching the GPU.
+ * AltarArea — no-op stub.
+ * The altar area has been removed. The mesh still exists in areas.glb
+ * but its materials are the globally shared "palette" and
+ * "emissiveOrangeRadialGradient" materials — disposing them would
+ * destroy the entire world's geometry rendering.
+ * Setting visible=false on the group is sufficient: Three.js skips
+ * the whole subtree in the render pass without touching the materials.
  */
 export class AltarArea
 {
     constructor(group)
     {
-        group.traverse((child) =>
-        {
-            child.visible = false
-
-            if(child.isMesh)
-            {
-                if(Array.isArray(child.material))
-                    child.material.forEach(m => m.dispose())
-                else if(child.material)
-                    child.material.dispose()
-
-                if(child.geometry)
-                    child.geometry.dispose()
-            }
-        })
+        group.visible = false
     }
 }
