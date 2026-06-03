@@ -1,5 +1,7 @@
 import * as THREE from 'three/webgpu'
 import { color, float, Fn, instancedArray, mix, normalWorld, positionGeometry, step, texture, uniform, uv, vec2, vec3, vec4 } from 'three/tsl'
+import { FontLoader } from 'three/examples/jsm/loaders/FontLoader.js'
+import { TextGeometry } from 'three/examples/jsm/geometries/TextGeometry.js'
 import { Inputs } from '../../Inputs/Inputs.js'
 import { InteractivePoints } from '../../InteractivePoints.js'
 import { Area } from './Area.js'
@@ -27,6 +29,9 @@ export class LandingArea extends Area
 
         for(const reference of references)
         {
+            // Hide original geometry (spells Bruno's name, baked into GLB)
+            reference.traverse(child => { child.visible = false })
+
             const physical = reference.userData.object.physical
             physical.colliders[0].setActiveEvents(this.game.RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
             physical.colliders[0].setContactForceEventThreshold(5)
@@ -35,6 +40,57 @@ export class LandingArea extends Area
                 this.game.audio.groups.get('hitBrick').playRandomNext(force, position)
             }
         }
+
+        // Build MEHEDY / KAWSER as 3D text using the Pally-Bold font
+        const fontLoader = new FontLoader()
+        fontLoader.load('fonts/Pally-Bold.json', (font) =>
+        {
+            const SIZE    = 1.3
+            const DEPTH   = 0.45
+            const ROT_Y   = Math.PI + 0.44  // face player spawn + slight diagonal
+
+            const material = new THREE.MeshStandardMaterial({
+                color: 0xff8039,
+                roughness: 0.55,
+                metalness: 0.08,
+                envMapIntensity: 0.6
+            })
+
+            const makeText = (str) =>
+            {
+                const geo = new TextGeometry(str, {
+                    font,
+                    size: SIZE,
+                    depth: DEPTH,
+                    curveSegments: 5,
+                    bevelEnabled: true,
+                    bevelThickness: 0.06,
+                    bevelSize:      0.04,
+                    bevelSegments:  3
+                })
+                geo.computeBoundingBox()
+                const w = geo.boundingBox.max.x - geo.boundingBox.min.x
+                geo.translate(-w / 2, 0, 0) // centre horizontally
+                return new THREE.Mesh(geo, material)
+            }
+
+            const line1 = makeText('MEHEDY')
+            const line2 = makeText('KAWSER')
+
+            // Position in landing area local space
+            // Original letters centre: x≈-5.2, y=-2.53 (ground), z≈3.1
+            // Player spawns at z=-2.83 and drives toward +z, so text faces -z (rot PI)
+            line1.position.set(-5.2, -2.53,          3.0)
+            line2.position.set(-5.2, -2.53 - SIZE - 0.25, 3.0)
+
+            line1.rotation.y = ROT_Y
+            line2.rotation.y = ROT_Y
+
+            line1.castShadow = true
+            line2.castShadow = true
+
+            this.group.add(line1, line2)
+        })
     }
 
     setKiosk()
