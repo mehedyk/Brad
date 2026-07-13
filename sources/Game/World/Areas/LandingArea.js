@@ -28,27 +28,73 @@ export class LandingArea extends Area
     {
         const references = this.references.items.get('letters')
 
-        for(const reference of references)
-        {
-            // Hide original geometry (spells Bruno's name, baked into GLB)
-            reference.traverse(child => { child.visible = false })
-
-            const physical = reference.userData.object.physical
-            physical.colliders[0].setActiveEvents(this.game.RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
-            physical.colliders[0].setContactForceEventThreshold(5)
-            physical.onCollision = (force, position) =>
-            {
-                this.game.audio.groups.get('hitBrick').playRandomNext(force, position)
-            }
-        }
-
-        // Build MEHEDY / KAWSER as 3D text using the Pally-Bold font
-        // Font is bundled directly — no network request, no async, always works
-        const font = new FontLoader().parse(pallyBoldData)
-
         const SIZE   = 1.3
         const DEPTH  = 0.45
-        const ROT_Y  = Math.PI + 0.44  // face player spawn + slight diagonal
+
+        const topCenter = new THREE.Vector3()
+        const bottomCenter = new THREE.Vector3()
+        let rotationY = Math.PI + 0.44
+
+        if(references && references.length > 0)
+        {
+            // Hide original geometry (spells Bruno's name, baked into GLB) and disable their physics
+            for(const reference of references)
+            {
+                reference.traverse(child => { child.visible = false })
+                const object = reference.userData.object
+                if(object)
+                {
+                    this.game.objects.disable(object)
+                }
+            }
+
+            // Sort references by their global y-coordinate descending to separate top/bottom lines
+            const sortedReferences = [...references].sort((a, b) => {
+                const posA = new THREE.Vector3()
+                const posB = new THREE.Vector3()
+                a.getWorldPosition(posA)
+                b.getWorldPosition(posB)
+                return posB.y - posA.y
+            })
+            
+            // Top line (original "BRUNO" letters)
+            const topLineRefs = sortedReferences.slice(0, Math.ceil(references.length / 2))
+            // Bottom line (original "SIMON" letters)
+            const bottomLineRefs = sortedReferences.slice(Math.ceil(references.length / 2))
+
+            const tempPos = new THREE.Vector3()
+
+            if(topLineRefs.length > 0)
+            {
+                for(const ref of topLineRefs)
+                {
+                    ref.getWorldPosition(tempPos)
+                    topCenter.add(tempPos)
+                }
+                topCenter.divideScalar(topLineRefs.length)
+            }
+
+            if(bottomLineRefs.length > 0)
+            {
+                for(const ref of bottomLineRefs)
+                {
+                    ref.getWorldPosition(tempPos)
+                    bottomCenter.add(tempPos)
+                }
+                bottomCenter.divideScalar(bottomLineRefs.length)
+            }
+
+            rotationY = references[0].rotation.y
+        }
+        else
+        {
+            // Fallbacks in global space if references are empty
+            topCenter.set(-5.2, -2.53 + SIZE + 0.25, 3.0).add(this.model.position)
+            bottomCenter.set(-5.2, -2.53, 3.0).add(this.model.position)
+        }
+
+        // Build MEHEDY / KAWSER as 3D text using the Pally font
+        const font = new FontLoader().parse(pallyBoldData)
 
         const material = new THREE.MeshStandardMaterial({
             color: 0xff8039,
@@ -77,16 +123,65 @@ export class LandingArea extends Area
         const line1 = makeText('MEHEDY')
         const line2 = makeText('KAWSER')
 
-        line1.position.set(-5.2, -2.53,                  3.0)
-        line2.position.set(-5.2, -2.53 - SIZE - 0.25,    3.0)
+        // Position them in global coordinates (since objects.add adds them to game.scene)
+        line1.position.copy(topCenter)
+        line2.position.copy(bottomCenter)
 
-        line1.rotation.y = ROT_Y
-        line2.rotation.y = ROT_Y
+        line1.rotation.y = rotationY
+        line2.rotation.y = rotationY
 
-        line1.castShadow = true
-        line2.castShadow = true
+        // We need to calculate the bounding box width for the colliders
+        line1.geometry.computeBoundingBox()
+        const w1 = line1.geometry.boundingBox.max.x - line1.geometry.boundingBox.min.x
 
-        this.model.add(line1, line2)
+        line2.geometry.computeBoundingBox()
+        const w2 = line2.geometry.boundingBox.max.x - line2.geometry.boundingBox.min.x
+
+        // Add them to the objects list with fixed physics colliders
+        const object1 = this.game.objects.add(
+            {
+                model: line1,
+                updateMaterials: true,
+                castShadow: true,
+                receiveShadow: true,
+            },
+            {
+                type: 'fixed',
+                position: topCenter,
+                rotation: line1.quaternion,
+                colliders: [
+                    {
+                        shape: 'cuboid',
+                        parameters: [ w1 * 0.5, SIZE * 0.5, DEPTH * 0.5 ],
+                        position: { x: 0, y: SIZE * 0.5, z: -DEPTH * 0.5 }
+                    }
+                ]
+            }
+        )
+
+        const object2 = this.game.objects.add(
+            {
+                model: line2,
+                updateMaterials: true,
+                castShadow: true,
+                receiveShadow: true,
+            },
+            {
+                type: 'fixed',
+                position: bottomCenter,
+                rotation: line2.quaternion,
+                colliders: [
+                    {
+                        shape: 'cuboid',
+                        parameters: [ w2 * 0.5, SIZE * 0.5, DEPTH * 0.5 ],
+                        position: { x: 0, y: SIZE * 0.5, z: -DEPTH * 0.5 }
+                    }
+                ]
+            }
+        )
+
+        // Add to hideable array for frustum culling
+        this.objects.hideable.push(line1, line2)
     }
 
     setKiosk()
