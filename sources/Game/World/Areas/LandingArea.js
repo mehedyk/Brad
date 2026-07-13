@@ -86,7 +86,7 @@ export class LandingArea extends Area
         line1.castShadow = true
         line2.castShadow = true
 
-        this.group.add(line1, line2)
+        this.model.add(line1, line2)
     }
 
     setKiosk()
