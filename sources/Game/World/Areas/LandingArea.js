@@ -31,13 +31,9 @@ export class LandingArea extends Area
         const SIZE   = 1.3
         const DEPTH  = 0.45
 
-        const topCenter = new THREE.Vector3()
-        const bottomCenter = new THREE.Vector3()
-        let rotationY = Math.PI + 0.44
-
+        // Hide original geometry (spells Bruno's name, baked into GLB) and disable their physics
         if(references && references.length > 0)
         {
-            // Hide original geometry (spells Bruno's name, baked into GLB) and disable their physics
             for(const reference of references)
             {
                 reference.traverse(child => { child.visible = false })
@@ -47,55 +43,20 @@ export class LandingArea extends Area
                     this.game.objects.disable(object)
                 }
             }
-
-            // Get rotation from the first reference
-            rotationY = references[0].rotation.y
-
-            // Vector perpendicular to the text baseline (along the ground)
-            const normal = new THREE.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY))
-
-            // Sort references by their global position projected onto the normal vector descending
-            const sortedReferences = [...references].sort((a, b) => {
-                const posA = new THREE.Vector3()
-                const posB = new THREE.Vector3()
-                a.getWorldPosition(posA)
-                b.getWorldPosition(posB)
-                return posB.dot(normal) - posA.dot(normal)
-            })
-            
-            // Top line (original "BRUNO" letters)
-            const topLineRefs = sortedReferences.slice(0, Math.ceil(references.length / 2))
-            // Bottom line (original "SIMON" letters)
-            const bottomLineRefs = sortedReferences.slice(Math.ceil(references.length / 2))
-
-            const tempPos = new THREE.Vector3()
-
-            if(topLineRefs.length > 0)
-            {
-                for(const ref of topLineRefs)
-                {
-                    ref.getWorldPosition(tempPos)
-                    topCenter.add(tempPos)
-                }
-                topCenter.divideScalar(topLineRefs.length)
-            }
-
-            if(bottomLineRefs.length > 0)
-            {
-                for(const ref of bottomLineRefs)
-                {
-                    ref.getWorldPosition(tempPos)
-                    bottomCenter.add(tempPos)
-                }
-                bottomCenter.divideScalar(bottomLineRefs.length)
-            }
         }
-        else
-        {
-            // Fallbacks in global space if references are empty
-            topCenter.set(-5.2, -2.53, 3.0 + SIZE + 0.25).add(this.model.position)
-            bottomCenter.set(-5.2, -2.53, 3.0).add(this.model.position)
-        }
+
+        const rotationY = Math.PI + 0.44
+        const normal = new THREE.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY))
+
+        // Center of the letter bricks area in the world (approximate original letters center)
+        const baseCenter = new THREE.Vector3(-5.2, -2.53, 3.0).add(this.model.position)
+
+        // Separate the two lines along the normal vector perpendicular to the baseline
+        // Line 1 ("MEHEDY" / back line) is shifted backwards (further from player spawn)
+        const topCenter = baseCenter.clone().add(normal.clone().multiplyScalar(-0.85))
+
+        // Line 2 ("KAWSER" / front line) is shifted forwards (closer to player spawn)
+        const bottomCenter = baseCenter.clone().add(normal.clone().multiplyScalar(0.85))
 
         // Build MEHEDY / KAWSER as 3D text using the Optimer font
         const font = new FontLoader().parse(pallyBoldData)
