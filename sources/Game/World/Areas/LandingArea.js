@@ -62,7 +62,7 @@ export class LandingArea extends Area
         const font = new FontLoader().parse(pallyBoldData)
 
         const material = new THREE.MeshStandardMaterial({
-            color: 0xff8039,
+            color: 0x39ff14,
             roughness: 0.55,
             metalness: 0.08,
         })
@@ -87,7 +87,7 @@ export class LandingArea extends Area
 
         // Direction along the text baseline
         const dir = new THREE.Vector3(Math.cos(rotationY), 0, -Math.sin(rotationY))
-        const spacing = 0.95 // Letter spacing
+        const spacing = 1.25 // Letter spacing
 
         const createBreakableLetter = (char, position, rotationY) =>
         {
