@@ -48,13 +48,19 @@ export class LandingArea extends Area
                 }
             }
 
-            // Sort references by their global y-coordinate descending to separate top/bottom lines
+            // Get rotation from the first reference
+            rotationY = references[0].rotation.y
+
+            // Vector perpendicular to the text baseline (along the ground)
+            const normal = new THREE.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY))
+
+            // Sort references by their global position projected onto the normal vector descending
             const sortedReferences = [...references].sort((a, b) => {
                 const posA = new THREE.Vector3()
                 const posB = new THREE.Vector3()
                 a.getWorldPosition(posA)
                 b.getWorldPosition(posB)
-                return posB.y - posA.y
+                return posB.dot(normal) - posA.dot(normal)
             })
             
             // Top line (original "BRUNO" letters)
@@ -83,17 +89,15 @@ export class LandingArea extends Area
                 }
                 bottomCenter.divideScalar(bottomLineRefs.length)
             }
-
-            rotationY = references[0].rotation.y
         }
         else
         {
             // Fallbacks in global space if references are empty
-            topCenter.set(-5.2, -2.53 + SIZE + 0.25, 3.0).add(this.model.position)
+            topCenter.set(-5.2, -2.53, 3.0 + SIZE + 0.25).add(this.model.position)
             bottomCenter.set(-5.2, -2.53, 3.0).add(this.model.position)
         }
 
-        // Build MEHEDY / KAWSER as 3D text using the Pally font
+        // Build MEHEDY / KAWSER as 3D text using the Optimer font
         const font = new FontLoader().parse(pallyBoldData)
 
         const material = new THREE.MeshStandardMaterial({
@@ -120,68 +124,77 @@ export class LandingArea extends Area
             return new THREE.Mesh(geo, material)
         }
 
-        const line1 = makeText('MEHEDY')
-        const line2 = makeText('KAWSER')
+        // Direction along the text baseline
+        const dir = new THREE.Vector3(Math.cos(rotationY), 0, -Math.sin(rotationY))
+        const spacing = 0.95 // Letter spacing
 
-        // Position them in global coordinates (since objects.add adds them to game.scene)
-        line1.position.copy(topCenter)
-        line2.position.copy(bottomCenter)
+        const createBreakableLetter = (char, position, rotationY) =>
+        {
+            const mesh = makeText(char)
+            
+            mesh.position.copy(position)
+            mesh.rotation.y = rotationY
 
-        line1.rotation.y = rotationY
-        line2.rotation.y = rotationY
+            mesh.geometry.computeBoundingBox()
+            const w = mesh.geometry.boundingBox.max.x - mesh.geometry.boundingBox.min.x
 
-        // We need to calculate the bounding box width for the colliders
-        line1.geometry.computeBoundingBox()
-        const w1 = line1.geometry.boundingBox.max.x - line1.geometry.boundingBox.min.x
+            const object = this.game.objects.add(
+                {
+                    model: mesh,
+                    updateMaterials: true,
+                    castShadow: true,
+                    receiveShadow: true,
+                },
+                {
+                    type: 'dynamic',
+                    position: position,
+                    rotation: mesh.quaternion,
+                    friction: 0.5,
+                    mass: 0.15,
+                    sleeping: true,
+                    colliders: [
+                        {
+                            shape: 'cuboid',
+                            parameters: [ w * 0.5, SIZE * 0.5, DEPTH * 0.5 ],
+                            position: { x: 0, y: SIZE * 0.5, z: -DEPTH * 0.5 }
+                        }
+                    ]
+                }
+            )
 
-        line2.geometry.computeBoundingBox()
-        const w2 = line2.geometry.boundingBox.max.x - line2.geometry.boundingBox.min.x
-
-        // Add them to the objects list with fixed physics colliders
-        const object1 = this.game.objects.add(
+            // Enable collision sound and event tracking
+            const physical = object.physical
+            if(physical)
             {
-                model: line1,
-                updateMaterials: true,
-                castShadow: true,
-                receiveShadow: true,
-            },
-            {
-                type: 'fixed',
-                position: topCenter,
-                rotation: line1.quaternion,
-                colliders: [
-                    {
-                        shape: 'cuboid',
-                        parameters: [ w1 * 0.5, SIZE * 0.5, DEPTH * 0.5 ],
-                        position: { x: 0, y: SIZE * 0.5, z: -DEPTH * 0.5 }
-                    }
-                ]
+                physical.colliders[0].setActiveEvents(this.game.RAPIER.ActiveEvents.CONTACT_FORCE_EVENTS)
+                physical.colliders[0].setContactForceEventThreshold(2)
+                physical.onCollision = (force, position) =>
+                {
+                    this.game.audio.groups.get('hitBrick').playRandomNext(force, position)
+                }
             }
-        )
 
-        const object2 = this.game.objects.add(
-            {
-                model: line2,
-                updateMaterials: true,
-                castShadow: true,
-                receiveShadow: true,
-            },
-            {
-                type: 'fixed',
-                position: bottomCenter,
-                rotation: line2.quaternion,
-                colliders: [
-                    {
-                        shape: 'cuboid',
-                        parameters: [ w2 * 0.5, SIZE * 0.5, DEPTH * 0.5 ],
-                        position: { x: 0, y: SIZE * 0.5, z: -DEPTH * 0.5 }
-                    }
-                ]
-            }
-        )
+            // Add to hideable array for frustum culling
+            this.objects.hideable.push(mesh)
+        }
 
-        // Add to hideable array for frustum culling
-        this.objects.hideable.push(line1, line2)
+        // Create MEHEDY letters
+        const line1Chars = 'MEHEDY'.split('')
+        for(let i = 0; i < line1Chars.length; i++)
+        {
+            const offset = (i - (line1Chars.length - 1) / 2) * spacing
+            const pos = topCenter.clone().add(dir.clone().multiplyScalar(offset))
+            createBreakableLetter(line1Chars[i], pos, rotationY)
+        }
+
+        // Create KAWSER letters
+        const line2Chars = 'KAWSER'.split('')
+        for(let i = 0; i < line2Chars.length; i++)
+        {
+            const offset = (i - (line2Chars.length - 1) / 2) * spacing
+            const pos = bottomCenter.clone().add(dir.clone().multiplyScalar(offset))
+            createBreakableLetter(line2Chars[i], pos, rotationY)
+        }
     }
 
     setKiosk()
