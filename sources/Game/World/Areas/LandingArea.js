@@ -45,7 +45,7 @@ export class LandingArea extends Area
             }
         }
 
-        const rotationY = Math.PI + 0.44
+        const rotationY = 0.44
         const normal = new THREE.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY))
 
         // Center of the letter bricks area in the world (approximate original letters center)
@@ -53,10 +53,10 @@ export class LandingArea extends Area
 
         // Separate the two lines along the normal vector perpendicular to the baseline
         // Line 1 ("MEHEDY" / back line) is shifted backwards (further from player spawn)
-        const topCenter = baseCenter.clone().add(normal.clone().multiplyScalar(-0.85))
+        const topCenter = baseCenter.clone().add(normal.clone().multiplyScalar(0.85))
 
         // Line 2 ("KAWSER" / front line) is shifted forwards (closer to player spawn)
-        const bottomCenter = baseCenter.clone().add(normal.clone().multiplyScalar(0.85))
+        const bottomCenter = baseCenter.clone().add(normal.clone().multiplyScalar(-0.85))
 
         // Build MEHEDY / KAWSER as 3D text using the Optimer font
         const font = new FontLoader().parse(pallyBoldData)
